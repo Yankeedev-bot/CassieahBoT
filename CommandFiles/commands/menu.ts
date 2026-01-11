@@ -9,7 +9,7 @@ import stringSimilarity from "string-similarity";
 
 export const meta: CommandMeta = {
   name: "menu",
-  author: "@lianecagara",
+  author: "꒰🍿˖°❗◯⃝🫟🎬TRØN†ARËS†BØT🍿⃤ ⃧🍧❓°˖ 🎟️ ꒱",
   description:
     "Acts as a central hub, like a Start Menu, providing users with an overview of available commands, their functionalities, and access to specific command details. Helps users quickly navigate the bot's features.",
   version: "3.1.1",
@@ -23,7 +23,7 @@ export const meta: CommandMeta = {
 };
 
 export const style: CommandStyle = {
-  title: Cassidy.logo,
+  title: "🎄💙 *GURA CHRISTMAS MENU* 💙🎄",
   titleFont: "none",
   contentFont: "none",
 };
@@ -50,6 +50,51 @@ const basicCommands = {
   mtls: "Create, buy, convert your **money** to a **mint**, (Not a **stock system** BTW.)",
 };
 
+// Fonction pour créer une boîte de commandes
+const createCommandBox = (title, commands, showPrefix = false, prefix = "") => {
+  if (!commands || commands.length === 0) return "";
+  
+  const maxCommandsPerBox = 10;
+  let result = "";
+  
+  // Diviser les commandes en groupes si nécessaire
+  const commandGroups = [];
+  for (let i = 0; i < commands.length; i += maxCommandsPerBox) {
+    commandGroups.push(commands.slice(i, i + maxCommandsPerBox));
+  }
+  
+  commandGroups.forEach((group, groupIndex) => {
+    let boxTitle = title;
+    if (commandGroups.length > 1) {
+      boxTitle = `${title} (${groupIndex + 1}/${commandGroups.length})`;
+    }
+    
+    result += `╭═══✨✨✨═══╮\n`;
+    result += `│ ${boxTitle}\n`;
+    
+    group.forEach(command => {
+      const cmdName = showPrefix ? `${prefix}${command.name}` : command.name;
+      const cmdDisplay = command.isAllowed ? `🎁 *${cmdName}*` : `🎁 ${cmdName}`;
+      const priceInfo = command.shopPrice > 0 ? ` - $${command.shopPrice} ${command.status}` : "";
+      result += `│ ${cmdDisplay}${priceInfo}\n`;
+    });
+    
+    result += `╰═══✨✨✨✨═══╯\n\n`;
+  });
+  
+  return result;
+};
+
+// Fonction pour créer l'en-tête
+const createHeader = (userName) => {
+  return `╭═══✨✨✨═══╮\n│ 🎄💙 *TRON MENU SYSTEM* 💙🎄\n│ Usuario: *${userName || "Guest"}*\n│ Bot: *TRØN†ARËS†BØT*\n│ Creador: *꒰🍿˖°❗◯⃝🫟🎬TRØN†ARËS†BØT🍿⃤ ⃧🍧❓°˖ 🎟️ ꒱*\n╰═══✨✨✨✨═══╯\n\n`;
+};
+
+// Fonction pour créer le pied de page
+const createFooter = (totalCommands, totalCategories, status = "Operational") => {
+  return `╭═══✨✨✨═══╮\n│ 🎅 *TRON ARES SYSTEM* 🌊\n│ 📊 Total Commands: ${totalCommands}\n│ 📂 Categories: ${totalCategories}\n│ ⚡ Status: ${status}\n│ 🍿🎬 ꒰TRØN†ARËS†BØT꒱ está orgulloso de ti.\n╰═══✨✨✨✨═══╯`;
+};
+
 export async function entry({
   input,
   output,
@@ -61,7 +106,6 @@ export async function entry({
   InputRoles,
 }: CommandContext) {
   const commands = multiCommands.toUnique((i) => i.meta?.name);
-
   const args = input.arguments;
   const { logo: icon } = global.Cassidy;
   const { shopInv, money: userMoney } = await money.queryItem(
@@ -71,6 +115,12 @@ export async function entry({
   );
   const shop = new ShopClass(shopInv);
 
+  // Récupérer le nom d'utilisateur
+  const userName = input.senderName || "User";
+  const botName = "TRØN†ARËS†BØT";
+  const creator = "꒰🍿˖°❗◯⃝🫟🎬TRØN†ARËS†BØT🍿⃤ ⃧🍧❓°˖ 🎟️ ꒱";
+
+  // Mode "all" - Afficher toutes les commandes dans le nouveau style
   if (
     String(args[0]).toLowerCase() === "all" ||
     (!args[0] && !Cassidy.allowGames)
@@ -82,75 +132,98 @@ export async function entry({
         categories[category].push(command);
         return categories;
       }, {});
-    const dontPrio: CassidySpectra.CommandTypes[] = ["arl_g", "cplx_g"];
 
+    // Préparer les commandes avec leurs informations
+    let allCommandsInfo = [];
+    let totalAllowedCommands = 0;
+
+    for (const [category, catCommands] of Object.entries(categorizedCommands)) {
+      const commandInfos = await Promise.all(
+        catCommands.map(async (command) => {
+          const { name, icon: cmdIcon, shopPrice = 0 } = command.meta;
+          const role = await extractCommandRole(command);
+          
+          const isAllowed =
+            (!shopPrice || shop.isUnlocked(name)) && input.hasRole(role);
+          
+          if (isAllowed) totalAllowedCommands++;
+          
+          const status = shop.isUnlocked(name)
+            ? "✅"
+            : shop.canPurchase(name, userMoney)
+            ? "💰"
+            : "❌";
+
+          return {
+            name,
+            icon: cmdIcon,
+            shopPrice,
+            isAllowed,
+            status
+          };
+        })
+      );
+
+      allCommandsInfo.push({
+        category,
+        commands: commandInfos
+      });
+    }
+
+    // Trier les catégories par priorité
+    const dontPrio: CassidySpectra.CommandTypes[] = ["arl_g", "cplx_g"];
     const getSumPrioIndex = (commands: CassidySpectra.CassidyCommand[]) => {
       if (!commands.length) return 0;
-
       return commands.reduce((sum, cmd) => {
         const idx = dontPrio.indexOf(cmd.meta.cmdType) * 5;
         return sum + (idx === -1 ? 0 : -idx);
       }, 0);
     };
 
-    const sortedCategories = Object.keys(categorizedCommands).sort((a, b) => {
-      const aCommands = categorizedCommands[a];
-      const bCommands = categorizedCommands[b];
-
+    allCommandsInfo.sort((a, b) => {
+      const aCommands = categorizedCommands[a.category];
+      const bCommands = categorizedCommands[b.category];
       const aPrio = getSumPrioIndex(aCommands);
       const bPrio = getSumPrioIndex(bCommands);
-
-      if (aPrio !== bPrio) {
-        return aPrio - bPrio;
-      }
-
-      return a.localeCompare(b);
+      if (aPrio !== bPrio) return aPrio - bPrio;
+      return a.category.localeCompare(b.category);
     });
 
-    let result = ``;
+    // Construire la réponse dans le nouveau style
+    let result = createHeader(userName);
 
-    for (const category of sortedCategories) {
-      result += `${UNISpectra.arrowFromB} 📁 **${category}** (${categorizedCommands[category].length})\n`;
-      for (const command of categorizedCommands[category]) {
-        const { name, icon, shopPrice = 0 } = command.meta;
-        const role = await extractCommandRole(command);
-        const statusIcon =
-          role === InputRoles.ADMINBOX && !input.hasRole(role)
-            ? "📦"
-            : InputRoles.MODERATORBOT && !input.hasRole(role)
-            ? "🛡️"
-            : role === InputRoles.ADMINBOT && !input.hasRole(role)
-            ? "👑"
-            : shop.isUnlocked(name)
-            ? icon || "📄"
-            : shop.canPurchase(name, userMoney)
-            ? "🔐"
-            : "🔒";
-
-        let isAllowed =
-          (!shopPrice || shop.isUnlocked(name)) && input.hasRole(role);
-        if (!isAllowed) {
-        }
-        result += `${statusIcon} ${toTitleCase(name)},   `;
+    // Ajouter chaque catégorie comme une boîte séparée
+    allCommandsInfo.forEach(({ category, commands: catCommands }) => {
+      // Filtrer seulement les commandes accessibles pour l'affichage
+      const displayCommands = catCommands.filter(cmd => cmd.isAllowed);
+      
+      if (displayCommands.length > 0) {
+        result += createCommandBox(category, displayCommands, true, prefix);
       }
-      result += `\n${UNISpectra.standardLineOld}\n`;
-    }
-    result = result.trim();
+    });
 
-    result += `\n${UNISpectra.arrow} Command details: **${prefix}${commandName} <command>**\n`;
+    // Ajouter le pied de page
+    result += createFooter(commands.size, allCommandsInfo.length);
 
-    const resultStr = `🔍 | **Available Commands** 🧰 (${commands.size})\n\n${result}${UNISpectra.charm} Developed by @**Liane Cagara** 🎀`;
-    return output.reply(resultStr);
+    return output.replyStyled(result, {
+      ...style,
+      content: {
+        text_font: "monospace"
+      }
+    });
+
   } else if (
     String(args[0]).toLowerCase() === "search" ||
     String(args[0]).toLowerCase() === "find"
   ) {
+    // Mode recherche - Garder l'ancien style pour la recherche
     const searchStr = String(args[1] || "");
     if (!searchStr) {
       return output.reply(
         `🔎 Search a **command** by putting a search keyword as argument.\n\n**EXAMPLE**: ${prefix}${commandName} search shop`
       );
     }
+    
     const getSortedFinds = <T>(
       search: string,
       candidates: { tokens: string[]; data: T }[]
@@ -177,10 +250,9 @@ export async function entry({
         .slice(0, 5);
       return results;
     };
+    
     const cmds = commands.values().map((command) => {
-      const {
-        meta: { ...meta },
-      } = command;
+      const { meta: { ...meta } } = command;
       meta.seo ??= [];
       meta.otherNames ??= [];
       meta.description ??= "";
@@ -188,25 +260,12 @@ export async function entry({
       meta.category ??= "";
       meta.usage = meta.usage.replaceAll("{prefix}", "");
       meta.usage = meta.usage.replaceAll("{name}", "");
-      const combined = `${meta.category} ${meta.name} ${meta.otherNames.join(
-        " "
-      )} ${meta.name} ${meta.otherNames.join(" ")} ${
-        meta.name
-      } ${meta.otherNames.join(" ")} ${meta.name} ${meta.otherNames.join(
-        " "
-      )} ${meta.name} ${meta.otherNames.join(" ")} ${
-        meta.name
-      } ${meta.otherNames.join(" ")} ${meta.description} ${
-        meta.usage
-      } ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(
-        " "
-      )} ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(
-        " "
-      )} ${meta.seo.join(" ")} ${meta.seo.join(" ")}`;
+      const combined = `${meta.category} ${meta.name} ${meta.otherNames.join(" ")} ${meta.name} ${meta.otherNames.join(" ")} ${meta.name} ${meta.otherNames.join(" ")} ${meta.name} ${meta.otherNames.join(" ")} ${meta.name} ${meta.otherNames.join(" ")} ${meta.name} ${meta.otherNames.join(" ")} ${meta.description} ${meta.usage} ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(" ")} ${meta.seo.join(" ")}`;
       const split = combined.split(/\s+/);
 
       return { ...command, meta, searchStr: combined, split };
     });
+    
     const results = getSortedFinds(
       searchStr,
       cmds.map((i) => ({
@@ -214,6 +273,7 @@ export async function entry({
         data: i,
       }))
     );
+    
     return output.reply(
       `🔎 **Search Results** (${results.length})\n${UNISpectra.standardLine}\n${
         results.length === 0
@@ -233,169 +293,132 @@ export async function entry({
               .join(`\n${UNISpectra.standardLine}\n`)
       }`
     );
-  } else if (String(args[0]).toLowerCase() === "basics") {
-    const entries = Object.entries(basicCommands);
 
+  } else if (String(args[0]).toLowerCase() === "basics") {
+    // Mode basics - Nouveau style
+    const entries = Object.entries(basicCommands);
     const filteredEntries = await Promise.all(
       entries.map(async (i) => {
         const command = multiCommands.getOne(i[0]);
-        if (!command) {
-          return null;
-        }
+        if (!command) return null;
         const role = await extractCommandRole(command);
-
         const isAllowed = input.hasRole(role);
-
-        return i;
-
         return isAllowed ? i : null;
       })
     );
 
     const validEntries = filteredEntries.filter(Boolean);
-
-    const basicStr = validEntries
-      .map(
-        (i) =>
-          `${multiCommands.getOne(i[0])?.meta?.icon ?? "📁"} ${prefix}${i[0]} ${
-            UNISpectra.arrowFromT
-          } ${i[1]}`
-      )
-      .join("\n");
-
-    let strs = [
-      `${UNISpectra.arrow} Are you new to the game? Here are the ***BASICS***`,
-      ``,
-      `⌨️ You need to put prefixes for commands. For example: Type "${prefix}gift" without quotations to use the gift command.`,
-      ``,
-      `🔎 You may only use command that **exists** in the menu.`,
-      ``,
-      `‼️ Some commands require **higher role** to be used.`,
-      ``,
-      `📝 Do not put any fonts when writing a command. The bot does not accept "${prefix}**gift**" because it has fonts in it.`,
-      ``,
-      `🎒 What is an item key or inventory key? Here it is:`,
-      `***EXAMPLE UI***: 🌒 **Shadow Coin** [shadowCoin]`,
-      `The "shadowCoin" is the key, if the command asks you to put a key, that's it. For example: "${prefix}pet-feed Liane shadowCoin" - this will feed **Liane** with 🌒 **Shadow Coin**.`,
-      ``,
-      `✅ **Basic Commands**`,
-      basicStr,
-      ``,
-      `${UNISpectra.arrowFromT} Try to ***Explore*** more commands!`,
-      `${UNISpectra.arrowFromT} View by page: **${prefix}${commandName} <page>**`,
-      `${UNISpectra.arrowFromT} View all: **${prefix}${commandName} all**`,
-      `${UNISpectra.charm} Developed by @**Liane Cagara** 🎀`,
-    ].join("\n");
-    if (1) {
-      return output.replyStyled(strs, {
-        ...style,
-        content: {
-          text_font: "none",
-        },
-      });
-    }
-    return output.attach(strs, "http://localhost:8000/start.png", {
+    
+    // Créer l'en-tête
+    let result = createHeader(userName);
+    
+    // Ajouter la section des commandes basiques
+    result += `╭═══✨✨✨═══╮\n`;
+    result += `│ 📚 *BASICS FOR BEGINNERS*\n`;
+    
+    validEntries.forEach((i: any) => {
+      const command = multiCommands.getOne(i[0]);
+      const cmdIcon = command?.meta?.icon || "📁";
+      result += `│ ${cmdIcon} ${prefix}${i[0]} - ${i[1]}\n`;
+    });
+    
+    result += `╰═══✨✨✨✨═══╯\n\n`;
+    
+    // Ajouter des conseils
+    result += `╭═══✨✨✨═══╮\n`;
+    result += `│ 💡 *TIPS & GUIDES*\n`;
+    result += `│ Use prefix before commands\n`;
+    result += `│ Example: "${prefix}gift"\n`;
+    result += `│ Item key is inside brackets\n`;
+    result += `│ Example: [shadowCoin]\n`;
+    result += `╰═══✨✨✨✨═══╯\n\n`;
+    
+    // Ajouter le pied de page
+    result += createFooter(commands.size, "Multiple");
+    
+    return output.replyStyled(result, {
       ...style,
       content: {
-        text_font: "none",
-      },
+        text_font: "monospace"
+      }
     });
+
   } else if (args.length > 0 && isNaN(parseInt(args[0]))) {
-    const commandName = args[0];
+    // Détails d'une commande spécifique
+    const cmdName = args[0];
     const commandsFound = multiCommands
-      .getMap(commandName)
+      .getMap(cmdName)
       .toUnique((i) => i.meta.name)
       .values();
-    let str = [];
-
+    
     if (commandsFound.length > 0) {
-      for (const command of commandsFound) {
-        const {
-          name,
-          description,
-          otherNames = [],
-          usage,
-          category = "None",
-          waitingTime = 5,
-          author = "Unknown",
-          shopPrice = 0,
-          icon: cmdIcon = "📄",
-          version = "N/A",
-          requirement = "N/A",
-        } = command.meta;
-        const status = shop.isUnlocked(name)
-          ? "✅ Unlocked"
-          : shop.canPurchase(name, userMoney)
-          ? "💰 Buyable"
-          : "🔒 Locked";
-        let role = await extractCommandRole(command, true, input.tid);
-
-        if (commandsFound.length !== 1) {
-          str.push(`╭─── ${cmdIcon} **${toTitleCase(name)}** ───
-│   📜 **Name**:
-│   ${UNISpectra.charm} ${name}
-│ 
-│   💬 **Description**: 
-│   ${UNISpectra.charm} ${description}
-│ 
-│   📝 **Aliases**: 
-│   ${UNISpectra.charm} ${otherNames.length ? otherNames.join(", ") : "None"}
-│   
-│   🔎 See **${prefix}${cmdn} ${name}** for more info.
-╰────────────────`);
-        } else {
-          str.push(`╭─── ${cmdIcon} **${toTitleCase(name)}** ───
-│   📜 **Name**:
-│   ${UNISpectra.charm} ${name}
-│ 
-│   💬 **Description**: 
-│   ${UNISpectra.charm} ${description}
-│ 
-│   📝 **Aliases**: 
-│   ${UNISpectra.charm} ${otherNames.length ? otherNames.join(", ") : "None"}
-│ 
-│   🛠️ **Usage**:
-│   ${UNISpectra.charm} ${usage
-            .replace(/{prefix}/g, prefix)
-            .replace(/{name}/g, name)}
-│ 
-│   📁 **Category**:
-│   ${UNISpectra.charm} ${category}
-│ 
-│   🔐 **Permissions**:
-│   ${UNISpectra.charm} ${typeof role === "number" ? role : "None required"}
-│ 
-│   ⏳ **Cooldown**:
-│   ${UNISpectra.charm} ${waitingTime} 
-│ 
-│   ✍️ **Author**: 
-│   ${UNISpectra.charm} ${author}
-│ 
-│   💸 **Price**:
-│   ${UNISpectra.charm} ${shopPrice ? `$${shopPrice} ${status}` : "⚡ Free"}
-│ 
-│   🖼️ **Icon**:
-│   ${UNISpectra.charm} ${cmdIcon}
-│ 
-│   📌 **Version**:
-│   ${UNISpectra.charm} ${version}
-│ 
-│   🛡️ **Requirement**:
-│   ${UNISpectra.charm} ${requirement}
-╰────────────────`);
+      const command = commandsFound[0];
+      const {
+        name,
+        description,
+        otherNames = [],
+        usage,
+        category = "None",
+        waitingTime = 5,
+        author = "Unknown",
+        shopPrice = 0,
+        icon: cmdIcon = "📄",
+        version = "N/A",
+        requirement = "N/A",
+      } = command.meta;
+      
+      const role = await extractCommandRole(command, true, input.tid);
+      const status = shop.isUnlocked(name)
+        ? "✅ Unlocked"
+        : shop.canPurchase(name, userMoney)
+        ? "💰 Buyable"
+        : "🔒 Locked";
+      
+      // Créer l'affichage détaillé dans le nouveau style
+      let result = createHeader(userName);
+      
+      result += `╭═══✨✨✨═══╮\n`;
+      result += `│ 🔍 *COMMAND DETAILS*\n`;
+      result += `│ Name: ${prefix}${name}\n`;
+      result += `│ Icon: ${cmdIcon}\n`;
+      result += `│ Category: ${category}\n`;
+      result += `│ Status: ${status}\n`;
+      result += `╰═══✨✨✨✨═══╯\n\n`;
+      
+      result += `╭═══✨✨✨═══╮\n`;
+      result += `│ 📝 *INFORMATION*\n`;
+      result += `│ Description: ${description}\n`;
+      result += `│ Aliases: ${otherNames.length ? otherNames.join(", ") : "None"}\n`;
+      result += `│ Author: ${author}\n`;
+      result += `│ Version: ${version}\n`;
+      result += `╰═══✨✨✨✨═══╯\n\n`;
+      
+      result += `╭═══✨✨✨═══╮\n`;
+      result += `│ ⚙️ *USAGE & SETTINGS*\n`;
+      result += `│ Usage: ${usage.replace(/{prefix}/g, prefix).replace(/{name}/g, name)}\n`;
+      result += `│ Cooldown: ${waitingTime}s\n`;
+      result += `│ Role Required: ${typeof role === "number" ? role : "None"}\n`;
+      result += `│ Requirement: ${requirement}\n`;
+      result += `│ Price: ${shopPrice ? `$${shopPrice}` : "Free"}\n`;
+      result += `╰═══✨✨✨✨═══╯`;
+      
+      return output.replyStyled(result, {
+        ...style,
+        content: {
+          text_font: "monospace"
         }
-      }
-      return output.replyStyled(str.join("\n\n"), {
-        title: Cassidy.logo,
-        contentFont: "fancy",
       });
     } else {
-      output.reply(
-        `${icon}\n\n❌ Oops! **${commandName}** isn't a valid command. Try another!`
+      return output.reply(
+        `╭═══✨✨✨═══╮\n│ ❌ *COMMAND NOT FOUND*\n│ Command "${cmdName}" doesn't exist\n│ Try: ${prefix}${cmdn} search ${cmdName}\n╰═══✨✨✨✨═══╯`
       );
     }
-    return;
+
   } else if (!isNaN(parseInt(args[0])) && args[0]) {
+    // Mode pagination
+    const pageNum = parseInt(args[0]);
+    const itemsPerPage = 5;
+    
     const categorizedCommands: Record<string, CassidySpectra.CassidyCommand[]> =
       commands.values().reduce((categories, command) => {
         const category = command.meta.category || "Miscellaneous";
@@ -403,167 +426,131 @@ export async function entry({
         categories[category].push(command);
         return categories;
       }, {});
-    const dontPrio: CassidySpectra.CommandTypes[] = ["arl_g", "cplx_g"];
-
-    const getSumPrioIndex = (commands: CassidySpectra.CassidyCommand[]) => {
-      if (!commands.length) return 0;
-
-      return commands.reduce((sum, cmd) => {
-        const idx = dontPrio.indexOf(cmd.meta.cmdType) * 5;
-        return sum + (idx === -1 ? 0 : -idx);
-      }, 0);
-    };
-
-    const sortedCategories = Object.keys(categorizedCommands).sort((a, b) => {
-      const aCommands = categorizedCommands[a];
-      const bCommands = categorizedCommands[b];
-
-      const aPrio = getSumPrioIndex(aCommands);
-      const bPrio = getSumPrioIndex(bCommands);
-
-      if (aPrio !== bPrio) {
-        return aPrio - bPrio;
-      }
-
-      return a.localeCompare(b);
-    });
-
-    const itemsPerPage = 3;
-    const totalPages = Math.ceil(sortedCategories.length / itemsPerPage);
-    let currentPage = parseInt(args[0]) || 1;
-
+    
+    const categoryList = Object.keys(categorizedCommands);
+    const totalPages = Math.ceil(categoryList.length / itemsPerPage);
+    let currentPage = pageNum;
+    
     if (currentPage < 1) currentPage = 1;
     if (currentPage > totalPages) currentPage = totalPages;
-
+    
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = currentPage * itemsPerPage;
-
-    const pageCategories = sortedCategories.slice(startIndex, endIndex);
-
-    let result = `**Page ${currentPage} of ${totalPages}** 📄\n`;
-    let preff = "│ ";
-
+    const pageCategories = categoryList.slice(startIndex, endIndex);
+    
+    let result = createHeader(userName);
+    
+    result += `╭═══✨✨✨═══╮\n`;
+    result += `│ 📄 *PAGE ${currentPage} OF ${totalPages}*\n`;
+    result += `│ Categories on this page:\n`;
+    pageCategories.forEach(cat => {
+      result += `│ • ${cat} (${categorizedCommands[cat].length})\n`;
+    });
+    result += `╰═══✨✨✨✨═══╯\n\n`;
+    
+    // Afficher les catégories de cette page
     for (const category of pageCategories) {
-      result += `\n╭─────────────❍\n${preff} ${UNISpectra.arrow} ***${category}*** 📁 (${categorizedCommands[category].length})\n${preff}\n`;
-      for (const command of categorizedCommands[category]) {
-        const { name, icon, shopPrice = 0 } = command.meta;
-        const role = await extractCommandRole(command);
-        const statusIcon =
-          role === InputRoles.ADMINBOX && !input.hasRole(role)
-            ? "📦"
-            : InputRoles.MODERATORBOT && !input.hasRole(role)
-            ? "🛡️"
-            : role === InputRoles.ADMINBOT && !input.hasRole(role)
-            ? "👑"
-            : shop.isUnlocked(name)
-            ? icon || "📄"
+      const catCommands = await Promise.all(
+        categorizedCommands[category].map(async (command) => {
+          const { name, shopPrice = 0 } = command.meta;
+          const role = await extractCommandRole(command);
+          const isAllowed =
+            (!shopPrice || shop.isUnlocked(name)) && input.hasRole(role);
+          
+          const status = shop.isUnlocked(name)
+            ? "✅"
             : shop.canPurchase(name, userMoney)
-            ? "🔐"
-            : "🔒";
-
-        let isAllowed =
-          (!shopPrice || shop.isUnlocked(name)) && input.hasRole(role);
-        result += `${preff}  ${statusIcon} ${prefix}${
-          isAllowed ? `**${toTitleCase(name)}**` : `${toTitleCase(name)}`
-        }${
-          shopPrice
-            ? ` - $${shopPrice} ${
-                shop.isUnlocked(name)
-                  ? "✅"
-                  : shop.canPurchase(name, userMoney)
-                  ? "💰"
-                  : "❌"
-              }`
-            : ""
-        }\n`;
+            ? "💰"
+            : "❌";
+          
+          return {
+            name,
+            shopPrice,
+            isAllowed,
+            status
+          };
+        })
+      );
+      
+      const displayCommands = catCommands.filter(cmd => cmd.isAllowed);
+      if (displayCommands.length > 0) {
+        result += createCommandBox(category, displayCommands, true, prefix);
       }
-      result += `╰─────────────❍\n`;
     }
-    result = result.trim();
+    
+    // Navigation
+    result += `╭═══✨✨✨═══╮\n`;
+    result += `│ 🧭 *NAVIGATION*\n`;
+    if (currentPage > 1) {
+      result += `│ Prev: ${prefix}${cmdn} ${currentPage - 1}\n`;
+    }
+    if (currentPage < totalPages) {
+      result += `│ Next: ${prefix}${cmdn} ${currentPage + 1}\n`;
+    }
+    result += `│ All: ${prefix}${cmdn} all\n`;
+    result += `│ Basics: ${prefix}${cmdn} basics\n`;
+    result += `╰═══✨✨✨✨═══╯\n\n`;
+    
+    result += createFooter(commands.size, categoryList.length);
+    
+    return output.replyStyled(result, {
+      ...style,
+      content: {
+        text_font: "monospace"
+      }
+    });
 
-    result += `\n\n${UNISpectra.arrow} ***Explore*** more commands!\n`;
-    result += `${UNISpectra.arrow} View another page: **${prefix}${commandName} <page>**\n`;
-    result += `${UNISpectra.arrow} Next page: **${prefix}${commandName} ${
-      currentPage + 1
-    }**\n`;
-    result += `${UNISpectra.arrow} Command details: **${prefix}${commandName} <command>**\n`;
-
-    const resultStr = `🔍 | **Available Commands** 🧰 (${commands.size})\n\n${result}${UNISpectra.charm} Developed by @**Liane Cagara** 🎀`;
-    return output.reply(resultStr);
   } else {
-    const basicCommandsOld = {
-      daily: "Claim your ***FREE*** reward every day!",
-      balance: "View your current coins! ( ***SOFT CURRENCY*** )",
-      gift: "Enjoy ***ITEM REWARDS*** every 20+ minutes.",
-      briefcase: "Learn how to manage your ***ITEMS*** after claiming gifts!",
-      bank: "Wanna store your coins somewhere? Try ***BANK**",
-      quiz: "Grind ***MORE*** coins by guessing!",
-      wordgame: "Grind ***MORE & MORE*** coins by guessing words too!",
-      garden: "Grow your ***GARDEN***!",
-      buy: "Unlock ***HIDDEN*** commands by purchasing them!",
-      rosashop:
-        "Purchase items from shopkeepers and unlock ***NEW POSSIBILITIES***",
-      pet: "Buy, Feed, and sell, or even battle using your ***PETS***",
-      harvest:
-        "Earn ***LOTS OF COINS*** without doing anything than tune and collect!",
-      skyrise: "Wanna manage your own ***EMPIRE*** and ***EARN TOO***?",
-      trade:
-        "Sell, collaborate, and ***EARN*** from your items using the price you like!",
-      arena: "Turn your pets into a ***GEM*** farm by battling with ai.",
-      encounter:
-        "Prepare your ***PETS*** for true danger and earn ***GEMS*** too!",
-    };
+    // Vue par défaut - style simplifié
     const entries = Object.entries(basicCommands);
-
     const filteredEntries = await Promise.all(
       entries.map(async (i) => {
         const command = multiCommands.getOne(i[0]);
-        if (!command) {
-          return null;
-        }
+        if (!command) return null;
         const role = await extractCommandRole(command);
-
-        const isAllowedOld =
-          (!command.meta.shopPrice || shop.isUnlocked(command.meta.name)) &&
-          input.hasRole(role);
         const isAllowed = input.hasRole(role);
-        return i;
-
         return isAllowed ? i : null;
       })
     );
 
     const validEntries = filteredEntries.filter(Boolean);
-
-    const basicStr = validEntries
-      .map(
-        (i) =>
-          `${multiCommands.getOne(i[0])?.meta?.icon ?? "📁"} ${prefix}${i[0]} ${
-            UNISpectra.arrowFromT
-          } ${i[1]}`
-      )
-      .join("\n");
-
-    let strs = [
-      `✅ **Basic Commands**`,
-      basicStr,
-      ``,
-      `📚 **More Commands**`,
-      `Type **${prefix}${commandName} all**`,
-      `Type **${prefix}${commandName} search** <text> to find commands easily.`,
-      ``,
-      `${UNISpectra.arrowFromT} View by page: **${prefix}${commandName} <page>**`,
-      `${UNISpectra.arrowFromT} View the basics: **${prefix}${commandName} basics**`,
-
-      `${UNISpectra.disc} Developed by @**Liane Cagara** 🎀`,
-    ].join("\n");
-    if (1) {
-      return output.replyStyled(strs, {
-        ...style,
-      });
+    
+    let result = createHeader(userName);
+    
+    // Commandes basiques
+    result += `╭═══✨✨✨═══╮\n`;
+    result += `│ ✅ *BASIC COMMANDS*\n`;
+    
+    validEntries.forEach((i: any, index) => {
+      if (index < 8) { // Limiter à 8 commandes pour la vue par défaut
+        const command = multiCommands.getOne(i[0]);
+        const cmdIcon = command?.meta?.icon || "📁";
+        result += `│ ${cmdIcon} ${prefix}${i[0]}\n`;
+      }
+    });
+    
+    if (validEntries.length > 8) {
+      result += `│ ... and ${validEntries.length - 8} more\n`;
     }
-    return output.attach(strs, "http://localhost:8000/start.png", {
+    
+    result += `╰═══✨✨✨✨═══╯\n\n`;
+    
+    // Options de navigation
+    result += `╭═══✨✨✨═══╮\n`;
+    result += `│ 🧭 *QUICK NAVIGATION*\n`;
+    result += `│ View all: ${prefix}${cmdn} all\n`;
+    result += `│ Search: ${prefix}${cmdn} search <text>\n`;
+    result += `│ Basics: ${prefix}${cmdn} basics\n`;
+    result += `│ Page 2: ${prefix}${cmdn} 2\n`;
+    result += `╰═══✨✨✨✨═══╯\n\n`;
+    
+    result += createFooter(commands.size, "Multiple");
+    
+    return output.replyStyled(result, {
       ...style,
+      content: {
+        text_font: "monospace"
+      }
     });
   }
-}
+  }
